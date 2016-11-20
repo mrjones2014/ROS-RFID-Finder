@@ -4,7 +4,7 @@ In this tutorial, we'll write a collection of ROS-enabled scripts in Python 2.7 
 ## General Note on Syntax for Terminal Snippets
 For commands to be run in the terminal, lines following the `$` character are commands, anything following a `#` character is a comment, and anything else is output returned by the terminal commands.
 
-# Prerequisites
+# Prerequisites and Dependencies
 In order to follow along with this tutorial, you must first ensure you have the following dependencies installed and configured properly:
 
 1. Python 2 >=2.7
