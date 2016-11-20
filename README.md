@@ -90,6 +90,7 @@ import serial
 import rospy
 from std_msgs.msg import String
 import argparse
+import sys
 ```
 
 1. `codecs` is required to decode the string into a human-readable format.
@@ -98,6 +99,7 @@ import argparse
 4. `rospy` is required to ROS-ify the script
 5. `String` from `std_msgs.msg` is required because its the message type we'll use to publish the data.
 6. `argparse` is required to parse command line arguments.
+7. `sys` is required to terminate the script properly.
 
 First, let's parse our command line arguments using `argparse`:
 ```python
@@ -116,16 +118,20 @@ if __name__ == "__main__":
 Next, we need to initialize the ROS node and create a ROS topic and publisher. We'll give our node the name "rfid_reader", and our topic the name "rfid_data":
 ```python
 rospy.init_node("rfid_reader")
-pub = rospy.Publisher("rfid_data", String)
+pub = rospy.Publisher("rfid_data", String, queue_size=10)
 ```
 Then, all that's left is to actually read and publish the data. Since this will be a standalone node, all we need is a loop that constantly checks for data coming over the serial port, and when there is, decodes and publishes the data.
 ```python
+ser = serial.Serial('/dev/' + serial_device, baud_rate)
 while True:
-    ser = serial.Serial('/dev/' + serial_device, baud_rate)
-    data = ser.readline()[1:]  # throw out first byte; it comes back garbled and unreadable
-    encoding = chardet.detect(data).values()[1]  # the encoding scheme name as a string
-    decoded = codecs.decode(data, encoding)
-    pub.publish(decoded)
+    try:
+        data = ser.readline()
+        encoding = chardet.detect(data).values()[1]  # the encoding scheme name as a string
+        decoded = codecs.decode(data, encoding)
+        print "Encoding: ", encoding, "\nData: ", decoded, "\n"
+        pub.publish(decoded)
+    except Exception, e:
+        sys.exit(0)
 ```
 
 That's it! The full script should look like this:
@@ -137,6 +143,7 @@ import serial
 import rospy
 from std_msgs.msg import String
 import argparse
+import sys
 
 
 if __name__ == "__main__":
@@ -151,14 +158,19 @@ if __name__ == "__main__":
         baud_rate = args.baud
 
     rospy.init_node("rfid_reader")
-    pub = rospy.Publisher("rfid_data", String)
+    pub = rospy.Publisher("rfid_data", String, queue_size=10)
 
+    ser = serial.Serial('/dev/' + serial_device, baud_rate)
     while True:
-        ser = serial.Serial('/dev/' + serial_device, baud_rate)
-        data = ser.readline()[1:]  # throw out first byte; it comes back garbled and unreadable
-        encoding = chardet.detect(data).values()[1]  # the encoding scheme name as a string
-        decoded = codecs.decode(data, encoding)
-        pub.publish(decoded)
+        try:
+            data = ser.readline()
+            encoding = chardet.detect(data).values()[1]  # the encoding scheme name as a string
+            decoded = codecs.decode(data, encoding)
+            print "Encoding: ", encoding, "\nData: ", decoded, "\n"
+            pub.publish(decoded)
+        except Exception, e:
+            sys.exit(0)
+
 ```
 Now we can build the package by running the following commands:
 ```bash
@@ -175,3 +187,4 @@ Now, you should be able to start your node (assuming `roscore` is running) by ru
 ```bash
 $ rosrun rfid_finder rfid_reader_node.py ttyUSB0
 ```
+While the script is running, if you run `rostopic list` in a terminal, the list of topics should now include `/rfid_data`. You can test the script by running `rostopic echo /rfid_data`, and then holding an RFID tag up to the reader. The topic should receive a message with contents similar to `data: 7F001B607F7B`. You can press `ctrl+C` to terminate the script.
