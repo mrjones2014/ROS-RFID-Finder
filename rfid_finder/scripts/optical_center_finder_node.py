@@ -26,12 +26,13 @@ def is_center(image_message, publisher):
         mask = cv2.dilate(mask, None, iterations=2)  # regular polygon, if possible
 
         # find contours in the masked image and keep the largest one
+        contours = None
         if cv2.__version__ == '3.1.0':
             (_, contours, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         elif cv2.__version__ == '3.0.0':
             (contours, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        if contours:
+        if contours is not None:
             c = max(contours, key=cv2.contourArea)
 
             # approximate the contour
