@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-import codecs
-import chardet
 import serial
 import rospy
 from std_msgs.msg import String
@@ -23,13 +21,11 @@ if __name__ == "__main__":
     pub = rospy.Publisher("rfid_data", String, queue_size=10)
 
     ser = serial.Serial('/dev/' + serial_device, baud_rate)
+    rospy.loginfo("Node `rfid_reader` started.")
     while True:
         try:
             data = ser.readline()
-            encoding = chardet.detect(data).values()[1]  # the encoding scheme name as a string
-            decoded = codecs.decode(data, encoding)
-            print "Encoding: ", encoding, "\nData: ", decoded, "\n"
-            pub.publish(decoded)
+            pub.publish(data)
         except Exception, e:
             sys.exit(0)
 
