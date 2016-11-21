@@ -18,7 +18,7 @@ def is_center(image_message, publisher):
     except cv_bridge.CvBridgeError, e:
         rospy.logerr(e.message)
 
-    if image:
+    if image is not None:
         hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
         (height, width) = image.shape[:2]
         mask = cv2.inRange(hsv, lowerBound, upperBound)
@@ -44,6 +44,7 @@ def is_center(image_message, publisher):
             else:
                 publisher.publish((width / 2) - object_center[0])
     gc.collect()  # force garbage collection; contours potentially are very large
+
 
 if __name__ == "__main__":
     rospy.init_node("optical_center_finder")
