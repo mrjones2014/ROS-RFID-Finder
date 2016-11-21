@@ -44,10 +44,10 @@ def is_center(image_message, publisher):
             else:
                 publisher.publish((width / 2) - object_center[0])
     gc.collect()  # force garbage collection; contours potentially are very large
-    rospy.spin()
 
 if __name__ == "__main__":
     rospy.init_node("optical_center_finder")
     pub = rospy.Publisher("optical_center_found", Int64, queue_size=10)
     sub = rospy.Subscriber("/camera/rgb/image_raw", Image, is_center, callback_args=pub, queue_size=10)
     rospy.loginfo("Node `optical_center_finder` started.")
+    rospy.spin()
