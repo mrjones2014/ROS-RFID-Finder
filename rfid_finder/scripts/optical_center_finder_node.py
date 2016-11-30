@@ -32,6 +32,8 @@ def dist_from_centered(image_message, publisher):
             (_, contours, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         elif cv2.__version__ == '3.0.0':
             (contours, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        else:
+            raise RuntimeError("OpenCV version 3.0.0 or 3.1.0 required! Installed version: " + cv2.__version__)
 
         if contours is not None:
             c = max(contours, key=cv2.contourArea)  # c is the largest contour
