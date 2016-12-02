@@ -92,7 +92,7 @@ $ dmesg | grep tty
 $ dmesg | grep tty
 [    0.000000] console [tty0] enabled
 [ 6290.333239] usb 1-3: FTDI USB Serial Device converter now attached to ttyUSB0
-$ sudo chmod +r /dev/ttyUSB0
+$ sudo chmod 777 /dev/ttyUSB0
 [sudo] password for root:
 $
 ```

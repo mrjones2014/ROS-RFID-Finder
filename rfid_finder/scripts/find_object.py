@@ -9,6 +9,13 @@ import imutils
 from std_msgs.msg import String
 
 
+"""
+TODO:
+-Use different camera (USB webcam) to solve color issues
+-Figure out how to set up USB webcam as ROS node
+-Increase dead zone turn speed slightly; <= 0.2 is not enough to move the bot at all
+"""
+
 upperBound = (179, 184, 171)
 lowerBound = (0,  55, 138)
 
@@ -86,7 +93,7 @@ def on_rfid_found(string_msg):
 if __name__ == "__main__":
     rospy.init_node("find_object")  # initialize the node
     robot = rospy.Publisher("cmd_vel_mux/input/navi", Twist, queue_size=10)  # set up a publisher to control Turtlebot
-    rospy.Subscriber("camera/rgb/image_rect_color", Image, move_to_object, callback_args=robot)  # camera subscriber
+    rospy.Subscriber("camera_rgb_raw", Image, move_to_object, callback_args=robot)  # camera subscriber
     rospy.Subscriber("rfid_data", String, on_rfid_found, queue_size=10)  # rfid data subscriber
     rospy.loginfo("Node `find_object` started...")  # loginfo that the node has been set up
     rospy.spin()  # keeps the script from exiting until the node is killed
