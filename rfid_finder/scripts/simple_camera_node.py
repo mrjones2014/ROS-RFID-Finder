@@ -14,6 +14,7 @@ def publish_camera_data():
     rospy.loginfo("camera_node started...")
     while not rospy.is_shutdown():
         (_, image) = camera.read()  # read the image from the camera
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image_converter = cv_bridge.CvBridge()
         image_message = image_converter.cv2_to_imgmsg(image)  # convert cv2 image matrix to ROS image message
         pub.publish(image_message)

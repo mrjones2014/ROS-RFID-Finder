@@ -16,8 +16,8 @@ TODO:
 -Increase dead zone turn speed slightly; <= 0.2 is not enough to move the bot at all
 """
 
-upperBound = (179, 184, 171)
-lowerBound = (0,  55, 138)
+upperBound = (18, 222, 235)
+lowerBound = (0, 155, 158)
 
 
 def move_to_object(image_message, publisher):
@@ -31,7 +31,7 @@ def move_to_object(image_message, publisher):
 
     if image is not None:
         image = imutils.resize(image, width=600)  # resize the image for displaying onscreen
-        hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)  # convert image to HSV color space
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)  # convert image to HSV color space
         (height, width) = image.shape[:2]
         mask = cv2.inRange(hsv, lowerBound, upperBound)  # create a mask layer based on color bounds
         mask = cv2.erode(mask, None, iterations=2)  # make the selection closer to a
@@ -67,18 +67,18 @@ def move_to_object(image_message, publisher):
             gc.collect()  # force garbage collection; the list of contours potentially is very large
             vel = Twist()
             if message_val < 0:  # object is to right of center; rotate left
-                vel.angular.z = -0.4
+                vel.angular.z = -0.6
                 if message_val > -20:  # slow down speed as we get closer
-                    vel.angular.z = -0.2
+                    vel.angular.z = -0.4
                 vel.linear.x = 0
             elif message_val > 0:  # object is to left of center; rotate right
-                vel.angular.z = 0.4
+                vel.angular.z = 0.6
                 if message_val > 20:  # slow down speed as we get closer
-                    vel.angular.z = 0.2
+                    vel.angular.z = 0.4
                 vel.linear.x = 0
             else:  # object is centered; go forward
                 vel.angular.z = 0
-                vel.linear.x = 0.4
+                vel.linear.x = 0.6
             rospy.loginfo("optical_center_finder reported: " + str(message_val))
             publisher.publish(vel)  # publish the velocity commands as a Twist message
         cv2.imshow("img", image)  # show the image
