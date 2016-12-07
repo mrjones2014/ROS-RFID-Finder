@@ -24,7 +24,7 @@ def move_to_object(image_message, publisher):
     bridge = cv_bridge.CvBridge()
     image = None
     try:
-        image = bridge.imgmsg_to_cv2(image_message)  # convert image message to OpenCV image matrix
+        image = bridge.imgmsg_to_cv2(image_message, "bgr8")  # convert image message to OpenCV image matrix
     except cv_bridge.CvBridgeError, e:
         rospy.logerr(e.message)
         print e.message
@@ -93,7 +93,7 @@ def on_rfid_found(string_msg):
 if __name__ == "__main__":
     rospy.init_node("find_object")  # initialize the node
     robot = rospy.Publisher("cmd_vel_mux/input/navi", Twist, queue_size=10)  # set up a publisher to control Turtlebot
-    rospy.Subscriber("camera_rgb_raw", Image, move_to_object, callback_args=robot)  # camera subscriber
+    rospy.Subscriber("camera/rgb/image_raw", Image, move_to_object, callback_args=robot)  # camera subscriber
     rospy.Subscriber("rfid_data", String, on_rfid_found, queue_size=10)  # rfid data subscriber
     rospy.loginfo("Node `find_object` started...")  # loginfo that the node has been set up
     rospy.spin()  # keeps the script from exiting until the node is killed
