@@ -13,6 +13,9 @@ In order to follow along with this tutorial, you must first ensure you have the 
 2. Pip (Pip is installed automatically with Python 2 >=2.7.9)
 3. ROS-Indigo installed on Ubuntu 14.04 [(tutorial)](http://wiki.ros.org/indigo/Installation/Ubuntu)
 4. OpenCV 3.0.0 or newer with Python 2.7+ bindings [(tutorial)](http://www.pyimagesearch.com/2015/06/22/install-opencv-3-0-and-python-2-7-on-ubuntu/)
+5. OpenNI2 ROS package (for the Turtlebot's onboard camera); run `sudo apt-get install ros-indigo-openni2-camera` and `sudo apt-get install ros-indigo-openni2-launch` 
+in a terminal window to install this package.
+6. Properly configured ROS environment variables
 
 To check that you have the required Python packages installed, open up a new terminal window and run `python` to open the Python terminal. Then, at the Python terminal, 
 type `import rospy`; if the package is installed properly, you should get no output. Then, still in the Python terminal, type `import cv2`; again, if installed properly, 
@@ -438,4 +441,53 @@ if __name__ == "__main__":
     rospy.spin()  # keeps the script from exiting until the node is killed
 ```
 
-# 7. Build your package
+# 7. Build the package
+Now that we've written all the necessary Python code, we can build the ROS package. First, however, we need to mark our Python scripts as executable. 
+To do this, open a terminal and run the following commands:
+```bash
+$ cd ~/ROS-RFID-Finder/rfid_finder/scripts/
+~/ROS-RFID-Finder/rfid_finder/scripts$ chmod +x find_object.py
+~/ROS-RFID-Finder/rfid_finder/scripts$ chmod +x rfid_reader_node.py
+```
+
+Then, we can build the full package by running the following commands:
+```bash
+$ cd ~/ROS-RFID-Finder/rfid_finder
+~/ROS-RFID-Finder/rfid_finder$ rosmake
+```
+
+Running the `rosmake` command should output some build information about the package. If successful, the last few lines of output should include something like:
+```bash
+[ rosmake ] Results:                                                            
+[ rosmake ] Built 27 packages with 0 failures.                                  
+[ rosmake ] Summary output to directory 
+```
+
+Note that the reason it reports 27 packages built (instead of just 1) is because `rosmake` also builds any dependencies declared when we created the package.
+
+Now, we need to trigger a rescan of package directories so that the newly created package can be launched through traditional ROS command line tools, like `rosrun`. 
+To do this, run the command `rospack profile` in a terminal window.
+
+# 8. Launching the system
+The first we need to do is install our new package on the Turtlebot's computer. To do this, copy the **entire project directory** (in this case, `ROS-RFID-Finder`) to the 
+Turtlebot's computer; alternatively, if using git, you can use git to clone the project onto the Turtlebot's computer. Then, this directory needs to be added to the 
+`ROS_PACKAGE_PATH` environment variable in the `~/.bashrc` file. Then, restart your terminal to apply changes. Once you have the project, you need to build and install it 
+ the same way as in section 7, but on the Turtlebot's computer.
+ 
+Then, launch all the dependencies. On the **Turtlebot's computer**, connect the Turtlebot and its onboard camera using the USB cables and run each of the 
+following commands in a terminal tab:
+1. `roscore`
+2. `roslaunch openni2_launch openni2.launch`
+3. `roslaunch turtlebot_bringup minimal.launch`
+4. `rosrun rfid_finder rfid_reader_node.py`
+
+Next, **on your main computer**, run the following command in a terminal window:
+`rosrun rfid_finder find_object.py`
+
+This should open a window that mirrors the Turtlebot's camera input overlayed with data from our node (like the object contours and centroid) so you can watch as images 
+are received and processed to help the Turtlebot navigate to the object.
+
+
+Congratulations! You've now implemented simple robotic optical navigation using ROS and Python 2! <br /><br /><br />
+**Note:** The main script (`find_object_.py`) might need some tinkering depending on how you attached the RFID reader to the Turtlebot and the size and shape of your 
+RFID tagged object.
