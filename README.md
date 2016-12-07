@@ -1,4 +1,4 @@
-# ROS-RFID-Finder
+# ROS-RFID-Finder Tutorial
 In this tutorial, we'll write a collection of ROS-enabled scripts in Python 2.7 for locating RFID tags using a Turtlebot Kobuki base, the Turtlebot's onboard camera, 
 and an RFID reader; we're using [this RFID reader kit from SparkFun.](https://www.sparkfun.com/products/13198)
 
