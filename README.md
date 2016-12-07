@@ -3,7 +3,7 @@ In this tutorial, we'll write a collection of ROS-enabled scripts in Python 2.7 
 and an RFID reader; we're using [this RFID reader kit from SparkFun.](https://www.sparkfun.com/products/13198)
 
 ## General Note on Syntax for Terminal Snippets
-For commands to be run in the terminal, lines following the `$` character are commands, anything following a `#` character is a comment, and anything else is output 
+For terminal session snippets, lines following the `$` character are commands, anything following a `#` character is a comment, and anything else is output 
 returned by the terminal commands.
 
 # Prerequisites and Dependencies
