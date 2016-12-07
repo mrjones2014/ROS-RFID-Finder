@@ -26,6 +26,6 @@ if __name__ == "__main__":
         try:
             data = ser.readline()
             pub.publish(data)
-        except Exception, e:
+        except KeyboardInterrupt, e:
             sys.exit(0)
 
