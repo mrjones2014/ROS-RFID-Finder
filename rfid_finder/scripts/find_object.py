@@ -9,15 +9,8 @@ import imutils
 from std_msgs.msg import String
 
 
-"""
-TODO:
--Use different camera (USB webcam) to solve color issues
--Figure out how to set up USB webcam as ROS node
--Increase dead zone turn speed slightly; <= 0.2 is not enough to move the bot at all
-"""
-
-upperBound = (18, 222, 235)
-lowerBound = (0, 155, 158)
+upperBound = (123, 123, 252)
+lowerBound = (1, 0, 176)
 
 
 def move_to_object(image_message, publisher):
@@ -31,9 +24,8 @@ def move_to_object(image_message, publisher):
 
     if image is not None:
         image = imutils.resize(image, width=600)  # resize the image for displaying onscreen
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)  # convert image to HSV color space
         (height, width) = image.shape[:2]
-        mask = cv2.inRange(hsv, lowerBound, upperBound)  # create a mask layer based on color bounds
+        mask = cv2.inRange(image, lowerBound, upperBound)  # create a mask layer based on color bounds
         mask = cv2.erode(mask, None, iterations=2)  # make the selection closer to a
         mask = cv2.dilate(mask, None, iterations=2)  # regular polygon, if possible
 
@@ -60,26 +52,30 @@ def move_to_object(image_message, publisher):
             # determine if the object is centered horizontally, plus/minus 10 px, and if so, publish value of 0
             if ((width / 2) - 10) < object_centroid[0] < ((width / 2) + 10):
                 rospy.loginfo("## Object centered! ##")
-                message_val = 0
+                object_offset = 0
             else:
                 # otherwise, publish difference between x coords of center of object and center of frame
-                message_val = (width / 2) - object_centroid[0]
+                object_offset = (width / 2) - object_centroid[0]
             gc.collect()  # force garbage collection; the list of contours potentially is very large
             vel = Twist()
-            if message_val < 0:  # object is to right of center; rotate left
+            if object_offset < 0:  # object is to right of center; rotate left
                 vel.angular.z = -0.6
-                if message_val > -20:  # slow down speed as we get closer
+                if object_offset > -40:  # slow down speed as we get closer
                     vel.angular.z = -0.4
+                    if object_offset > -20:  # slow down more as we get even closer
+                        vel.angular.z = -0.2
                 vel.linear.x = 0
-            elif message_val > 0:  # object is to left of center; rotate right
+            elif object_offset > 0:  # object is to left of center; rotate right
                 vel.angular.z = 0.6
-                if message_val > 20:  # slow down speed as we get closer
+                if object_offset < 40:  # slow down speed as we get closer
                     vel.angular.z = 0.4
+                    if object_offset < 20:  # slow down more as we get even closer
+                        vel.angular.z = -0.2
                 vel.linear.x = 0
             else:  # object is centered; go forward
                 vel.angular.z = 0
-                vel.linear.x = 0.6
-            rospy.loginfo("optical_center_finder reported: " + str(message_val))
+                vel.linear.x = 0.4
+            rospy.loginfo("optical_center_finder reported: " + str(object_offset))
             publisher.publish(vel)  # publish the velocity commands as a Twist message
         cv2.imshow("img", image)  # show the image
         cv2.waitKey(1)  # refresh contents of image frame

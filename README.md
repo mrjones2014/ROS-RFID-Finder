@@ -224,20 +224,21 @@ from std_msgs.msg import String
 7. `imutils` is a module of utility functions for working with OpenCV images; it can be easily installed via Pip by running the command `sudo pip install imutils`
 8. `String` from `std_msgs.msg` is the message type for the RFID reader node
 
-Next, you need to determine an appropriate `upperBound` and `lowerBound` color vectors, in the HSV color space. If you're not sure of what these should be, you can use
-another script I've prepared called [HSVColorTool.py](https://github.com/YorkCpE/YCPRobotics/blob/master/tools/OpenCV-HSV-Color-Tool/HSVColorTool.py) to figure out 
+Next, you need to determine an appropriate `upperBound` and `lowerBound` color vectors, in the BGR color space (**not RGB**). If you're not sure of what these should be, you can use
+another script I've prepared called [BGRColorTool.py](https://github.com/YorkCpE/YCPRobotics/blob/master/tools/OpenCV-Color-Tools/BGRColorTool.py) to figure out 
 what these values should be. Essentially, it allows you to click on an object, and each time you click, it adds the clicked color to a running average; then, when 
 the script terminates, it should print an appropriate `upperBound` and `lowerBound` value for the object you clicked on. Make sure you take enough samples to get an 
 accurate range (in my experience, 30-50 clicks should suffice, depending on lighting). Make sure you rotate the object to several angles as you're clicking, 
 and get samples from both shadowed and illuminated parts of the object.
 
 Another thing to keep in mind: if the Turtlebot's camera has not been configured (e.g. the OpenNI2 driver cannot find a configuration file for it), and depending on the camera, 
-the colors may not be accurate, which will make it harder to track the object properly.
+the colors may not be accurate, which will make it harder to track the object properly. One possible solution would be to use the BGRColorTool.py script using the Turtlebot's 
+camera as the input device.
 
 For the object I'm using (which is bright red), my values are: <br />
 ```python
-upperBound = (179, 184, 171)
-lowerBound = (0,  55, 138)
+upperBound = (123, 123, 252)
+lowerBound = (1, 0, 176)
 ```
 
 Next, let's design a function that will be our callback for our ROS publisher. Before we write the code, let's think about the general procedure **for each frame**:
@@ -253,16 +254,15 @@ def move_to_object(image_message, publisher):
     bridge = cv_bridge.CvBridge()
     image = None
     try:
-        image = bridge.imgmsg_to_cv2(image_message)  # convert image message to OpenCV image matrix
+        image = bridge.imgmsg_to_cv2(image_message, "bgr8")  # convert image message to OpenCV image matrix
     except cv_bridge.CvBridgeError, e:
         rospy.logerr(e.message)
         print e.message
 
     if image is not None:
         image = imutils.resize(image, width=600)  # resize the image for displaying onscreen
-        hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)  # convert image to HSV color space
         (height, width) = image.shape[:2]
-        mask = cv2.inRange(hsv, lowerBound, upperBound)  # create a mask layer based on color bounds
+        mask = cv2.inRange(image, lowerBound, upperBound)  # create a mask layer based on color bounds
         mask = cv2.erode(mask, None, iterations=2)  # make the selection closer to a
         mask = cv2.dilate(mask, None, iterations=2)  # regular polygon, if possible
 
@@ -289,26 +289,30 @@ def move_to_object(image_message, publisher):
             # determine if the object is centered horizontally, plus/minus 10 px, and if so, publish value of 0
             if ((width / 2) - 10) < object_centroid[0] < ((width / 2) + 10):
                 rospy.loginfo("## Object centered! ##")
-                message_val = 0
+                object_offset = 0
             else:
                 # otherwise, publish difference between x coords of center of object and center of frame
-                message_val = (width / 2) - object_centroid[0]
+                object_offset = (width / 2) - object_centroid[0]
             gc.collect()  # force garbage collection; the list of contours potentially is very large
             vel = Twist()
-            if message_val < 0:  # object is to right of center; rotate left
-                vel.angular.z = -0.4
-                if message_val > -20:  # slow down speed as we get closer
-                    vel.angular.z = -0.2
+            if object_offset < 0:  # object is to right of center; rotate left
+                vel.angular.z = -0.6
+                if object_offset > -40:  # slow down speed as we get closer
+                    vel.angular.z = -0.4
+                    if object_offset > -20:  # slow down more as we get even closer
+                        vel.angular.z = -0.2
                 vel.linear.x = 0
-            elif message_val > 0:  # object is to left of center; rotate right
-                vel.angular.z = 0.4
-                if message_val > 20:  # slow down speed as we get closer
-                    vel.angular.z = 0.2
+            elif object_offset > 0:  # object is to left of center; rotate right
+                vel.angular.z = 0.6
+                if object_offset < 40:  # slow down speed as we get closer
+                    vel.angular.z = 0.4
+                    if object_offset < 20:  # slow down more as we get even closer
+                        vel.angular.z = -0.2
                 vel.linear.x = 0
             else:  # object is centered; go forward
                 vel.angular.z = 0
                 vel.linear.x = 0.4
-            rospy.loginfo("optical_center_finder reported: " + str(message_val))
+            rospy.loginfo("optical_center_finder reported: " + str(object_offset))
             publisher.publish(vel)  # publish the velocity commands as a Twist message
         cv2.imshow("img", image)  # show the image
         cv2.waitKey(1)  # refresh contents of image frame
@@ -327,7 +331,7 @@ Now, all that's left to do is to set up the controller node itself:
 if __name__ == "__main__":
     rospy.init_node("find_object")  # initialize the node
     robot = rospy.Publisher("cmd_vel_mux/input/navi", Twist, queue_size=10)  # set up a publisher to control Turtlebot
-    rospy.Subscriber("camera/rgb/image_rect_color", Image, move_to_object, callback_args=robot)  # camera subscriber
+    rospy.Subscriber("camera/rgb/image_raw", Image, move_to_object, callback_args=robot)  # camera subscriber
     rospy.Subscriber("rfid_data", String, on_rfid_found, queue_size=10)  # rfid data subscriber
     rospy.loginfo("Node `find_object` started...")  # loginfo that the node has been set up
     rospy.spin()  # keeps the script from exiting until the node is killed
@@ -348,24 +352,23 @@ import imutils
 from std_msgs.msg import String
 
 
-upperBound = (179, 184, 171)
-lowerBound = (0,  55, 138)
+upperBound = (123, 123, 252)
+lowerBound = (1, 0, 176)
 
 
 def move_to_object(image_message, publisher):
     bridge = cv_bridge.CvBridge()
     image = None
     try:
-        image = bridge.imgmsg_to_cv2(image_message)  # convert image message to OpenCV image matrix
+        image = bridge.imgmsg_to_cv2(image_message, "bgr8")  # convert image message to OpenCV image matrix
     except cv_bridge.CvBridgeError, e:
         rospy.logerr(e.message)
         print e.message
 
     if image is not None:
         image = imutils.resize(image, width=600)  # resize the image for displaying onscreen
-        hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)  # convert image to HSV color space
         (height, width) = image.shape[:2]
-        mask = cv2.inRange(hsv, lowerBound, upperBound)  # create a mask layer based on color bounds
+        mask = cv2.inRange(image, lowerBound, upperBound)  # create a mask layer based on color bounds
         mask = cv2.erode(mask, None, iterations=2)  # make the selection closer to a
         mask = cv2.dilate(mask, None, iterations=2)  # regular polygon, if possible
 
@@ -392,26 +395,30 @@ def move_to_object(image_message, publisher):
             # determine if the object is centered horizontally, plus/minus 10 px, and if so, publish value of 0
             if ((width / 2) - 10) < object_centroid[0] < ((width / 2) + 10):
                 rospy.loginfo("## Object centered! ##")
-                message_val = 0
+                object_offset = 0
             else:
                 # otherwise, publish difference between x coords of center of object and center of frame
-                message_val = (width / 2) - object_centroid[0]
+                object_offset = (width / 2) - object_centroid[0]
             gc.collect()  # force garbage collection; the list of contours potentially is very large
             vel = Twist()
-            if message_val < 0:  # object is to right of center; rotate left
-                vel.angular.z = -0.4
-                if message_val > -20:  # slow down speed as we get closer
-                    vel.angular.z = -0.2
+            if object_offset < 0:  # object is to right of center; rotate left
+                vel.angular.z = -0.6
+                if object_offset > -40:  # slow down speed as we get closer
+                    vel.angular.z = -0.4
+                    if object_offset > -20:  # slow down more as we get even closer
+                        vel.angular.z = -0.2
                 vel.linear.x = 0
-            elif message_val > 0:  # object is to left of center; rotate right
-                vel.angular.z = 0.4
-                if message_val > 20:  # slow down speed as we get closer
-                    vel.angular.z = 0.2
+            elif object_offset > 0:  # object is to left of center; rotate right
+                vel.angular.z = 0.6
+                if object_offset < 40:  # slow down speed as we get closer
+                    vel.angular.z = 0.4
+                    if object_offset < 20:  # slow down more as we get even closer
+                        vel.angular.z = -0.2
                 vel.linear.x = 0
             else:  # object is centered; go forward
                 vel.angular.z = 0
                 vel.linear.x = 0.4
-            rospy.loginfo("optical_center_finder reported: " + str(message_val))
+            rospy.loginfo("optical_center_finder reported: " + str(object_offset))
             publisher.publish(vel)  # publish the velocity commands as a Twist message
         cv2.imshow("img", image)  # show the image
         cv2.waitKey(1)  # refresh contents of image frame
@@ -425,8 +432,10 @@ def on_rfid_found(string_msg):
 if __name__ == "__main__":
     rospy.init_node("find_object")  # initialize the node
     robot = rospy.Publisher("cmd_vel_mux/input/navi", Twist, queue_size=10)  # set up a publisher to control Turtlebot
-    rospy.Subscriber("camera/rgb/image_rect_color", Image, move_to_object, callback_args=robot)  # camera subscriber
+    rospy.Subscriber("camera/rgb/image_raw", Image, move_to_object, callback_args=robot)  # camera subscriber
     rospy.Subscriber("rfid_data", String, on_rfid_found, queue_size=10)  # rfid data subscriber
     rospy.loginfo("Node `find_object` started...")  # loginfo that the node has been set up
     rospy.spin()  # keeps the script from exiting until the node is killed
 ```
+
+# 7. Build your package
