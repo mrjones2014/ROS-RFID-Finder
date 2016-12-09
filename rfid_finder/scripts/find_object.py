@@ -30,7 +30,7 @@ def move_to_object(image_message, publisher):
         mask = cv2.dilate(mask, None, iterations=2)  # regular polygon, if possible
 
         # find contours in the masked image and keep the largest one
-        if cv2.__version__ == "3.1.0":  # Because the return tupled changed in version 3.1.0
+        if cv2.__version__ == "3.1.0":  # Because the return tuple changed in version 3.1.0
             (_, contours, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         else:
             (contours, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
