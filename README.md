@@ -69,13 +69,12 @@ $ roscd rfid_finder
 ~/ROS-RFID-Finder/rfid_finder/scripts$
 ```
 # 3. Install Python libraries
-For our scripts, we'll use a few libraries in addition to OpenCV; `numpy`, `chardet`, and `pyserial`. You can install these packages by running `pip install numpy`, 
-`pip install chardet`, and `pip install pyserial`. If any of these fail to install, try re-running the `pip install` command as sudo (e.g. `sudo pip install` the package). 
+For our scripts, we'll use a few libraries in addition to OpenCV; `numpy`, `chardet`, and `pyserial`. You can install these packages by running `pip install numpy` 
+and `pip install pyserial`. If any of these fail to install, try re-running the `pip install` command as `sudo` (e.g. `sudo pip install` the package). 
 Here's an explanation of what each of these packages are for:
 
 1. numpy - A standardized Python math library; used heavily by OpenCV (images are represented as numpy matricies)
-2. chardet - A library for automatically detecting the encoding scheme of an encoded string
-3. pyserial - A library for reading/writing data over a serial connection
+2. pyserial - A library for reading/writing data over a serial connection
 
 # 4. Setting the permissions of the serial device
 In order for `pyserial` to be able to read data from the RFID reader over a serial connection, you need to set the permissions of the serial device. First, run the 
@@ -244,16 +243,24 @@ upperBound = (123, 123, 252)
 lowerBound = (1, 0, 176)
 ```
 
+We'll also need a global variable to help us determine when the object goes off the bottom of the frame of the image, because the camera can only see objects that are a 
+certain distance from the Turtlebot:
+```python
+keep_going = False
+```
+
 Next, let's design a function that will be our callback for our ROS publisher. Before we write the code, let's think about the general procedure **for each frame**:
 1. Identify the target object using the `upperBound` and `lowerBound` color values.
 2. Get the contours that exist in the frame for that color range and discard all but the largest contour; this will be your actual object.
 3. Calculate the centroid of this contour.
 4. Determine if the centroid is horizontally centered in the frame and publish a Twist message to the Turtlebot based on that information
-5. Force garbage collection; our list of contours is *potentially* **a lot** of data.
+5. Determine whether the object has drifted off the bottom of the frame, and if so, keep moving until the RFID tag is read.
+6. Force garbage collection; our list of contours is *potentially* **a lot** of data.
 
 This leads to the following callback method:
 ```python
 def move_to_object(image_message, publisher):
+    global keep_going
     bridge = cv_bridge.CvBridge()
     image = None
     try:
@@ -270,7 +277,7 @@ def move_to_object(image_message, publisher):
         mask = cv2.dilate(mask, None, iterations=2)  # regular polygon, if possible
 
         # find contours in the masked image and keep the largest one
-        if cv2.__version__ == "3.1.0":  # Because the return tupled changed in version 3.1.0
+        if cv2.__version__ == "3.1.0":  # Because the return tuple changed in version 3.1.0
             (_, contours, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         else:
             (contours, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -296,6 +303,10 @@ def move_to_object(image_message, publisher):
             else:
                 # otherwise, publish difference between x coords of center of object and center of frame
                 object_offset = (width / 2) - object_centroid[0]
+
+            if height - 10 < object_centroid[1]:  # used to determine if object went off bottom of frame
+                keep_going = True
+
             gc.collect()  # force garbage collection; the list of contours potentially is very large
             vel = Twist()
             if object_offset < 0:  # object is to right of center; rotate left
@@ -317,15 +328,23 @@ def move_to_object(image_message, publisher):
                 vel.linear.x = 0.4
             rospy.loginfo("optical_center_finder reported: " + str(object_offset))
             publisher.publish(vel)  # publish the velocity commands as a Twist message
-        cv2.imshow("img", image)  # show the image
+        elif keep_going:  # the object has gone off the bottom of the frame; continue forward until the tag is found
+            vel = Twist()
+            vel.angular.z = 0
+            vel.linear.x = 0.4
+            publisher.publish(vel)
+
+        cv2.imshow("Camera Feed", image)  # show the image
         cv2.waitKey(1)  # refresh contents of image frame
 ```
 
-Next, let's define a callback for a subscriber to the `rfid_data` topic that just reports the RFID tag ID that was read:
+Next, let's define a callback for a subscriber to the `rfid_data` topic that just reports the RFID tag ID that was read and stops the Turtlebot:
 ```python
 def on_rfid_found(string_msg):
+    global keep_going
     tag_id = string_msg.data
     rospy.loginfo("Found RFID tag with ID: " + tag_id)
+    keep_going = False  # we've found the tag; stop
 ```
 
 Now, all that's left to do is to set up the controller node itself:
@@ -345,6 +364,7 @@ The reason for the line `if __name__ == "__main__":` is so that this module can 
 So, the complete script for this section is:
 ```python
 #!/usr/bin/env python
+#!/usr/bin/env python
 import rospy
 from sensor_msgs.msg import Image
 import cv_bridge
@@ -358,8 +378,11 @@ from std_msgs.msg import String
 upperBound = (123, 123, 252)
 lowerBound = (1, 0, 176)
 
+keep_going = False
+
 
 def move_to_object(image_message, publisher):
+    global keep_going
     bridge = cv_bridge.CvBridge()
     image = None
     try:
@@ -376,7 +399,7 @@ def move_to_object(image_message, publisher):
         mask = cv2.dilate(mask, None, iterations=2)  # regular polygon, if possible
 
         # find contours in the masked image and keep the largest one
-        if cv2.__version__ == "3.1.0":  # Because the return tupled changed in version 3.1.0
+        if cv2.__version__ == "3.1.0":  # Because the return tuple changed in version 3.1.0
             (_, contours, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         else:
             (contours, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -402,6 +425,10 @@ def move_to_object(image_message, publisher):
             else:
                 # otherwise, publish difference between x coords of center of object and center of frame
                 object_offset = (width / 2) - object_centroid[0]
+
+            if height - 10 < object_centroid[1]:  # used to determine if object went off bottom of frame
+                keep_going = True
+
             gc.collect()  # force garbage collection; the list of contours potentially is very large
             vel = Twist()
             if object_offset < 0:  # object is to right of center; rotate left
@@ -423,13 +450,21 @@ def move_to_object(image_message, publisher):
                 vel.linear.x = 0.4
             rospy.loginfo("optical_center_finder reported: " + str(object_offset))
             publisher.publish(vel)  # publish the velocity commands as a Twist message
-        cv2.imshow("img", image)  # show the image
+        elif keep_going:  # the object has gone off the bottom of the frame; continue forward until the tag is found
+            vel = Twist()
+            vel.angular.z = 0
+            vel.linear.x = 0.4
+            publisher.publish(vel)
+
+        cv2.imshow("Camera Feed", image)  # show the image
         cv2.waitKey(1)  # refresh contents of image frame
 
 
 def on_rfid_found(string_msg):
+    global keep_going
     tag_id = string_msg.data
     rospy.loginfo("Found RFID tag with ID: " + tag_id)
+    keep_going = False  # we've found the tag; stop
 
 
 if __name__ == "__main__":
@@ -439,6 +474,7 @@ if __name__ == "__main__":
     rospy.Subscriber("rfid_data", String, on_rfid_found, queue_size=10)  # rfid data subscriber
     rospy.loginfo("Node `find_object` started...")  # loginfo that the node has been set up
     rospy.spin()  # keeps the script from exiting until the node is killed
+
 ```
 
 # 7. Build the package

@@ -12,8 +12,11 @@ from std_msgs.msg import String
 upperBound = (123, 123, 252)
 lowerBound = (1, 0, 176)
 
+keep_going = False
+
 
 def move_to_object(image_message, publisher):
+    global keep_going
     bridge = cv_bridge.CvBridge()
     image = None
     try:
@@ -56,6 +59,10 @@ def move_to_object(image_message, publisher):
             else:
                 # otherwise, publish difference between x coords of center of object and center of frame
                 object_offset = (width / 2) - object_centroid[0]
+
+            if height - 10 < object_centroid[1]:  # used to determine if object went off bottom of frame
+                keep_going = True
+
             gc.collect()  # force garbage collection; the list of contours potentially is very large
             vel = Twist()
             if object_offset < 0:  # object is to right of center; rotate left
@@ -77,13 +84,21 @@ def move_to_object(image_message, publisher):
                 vel.linear.x = 0.4
             rospy.loginfo("optical_center_finder reported: " + str(object_offset))
             publisher.publish(vel)  # publish the velocity commands as a Twist message
-        cv2.imshow("img", image)  # show the image
+        elif keep_going:  # the object has gone off the bottom of the frame; continue forward until the tag is found
+            vel = Twist()
+            vel.angular.z = 0
+            vel.linear.x = 0.4
+            publisher.publish(vel)
+
+        cv2.imshow("Camera Feed", image)  # show the image
         cv2.waitKey(1)  # refresh contents of image frame
 
 
 def on_rfid_found(string_msg):
+    global keep_going
     tag_id = string_msg.data
     rospy.loginfo("Found RFID tag with ID: " + tag_id)
+    keep_going = False  # we've found the tag; stop
 
 
 if __name__ == "__main__":
